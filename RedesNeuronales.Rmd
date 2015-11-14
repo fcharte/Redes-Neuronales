@@ -1,0 +1,168 @@
+---
+title: "Redes neuronales con R"
+author: "Francisco Charte Ojeda"
+date: "13 de noviembre de 2015"
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+---
+
+> Este es un tutorial muy básico sobre redes neuronales y R, sin asumir ningún conocimiento previo del tema salvo que se tiene R instalado en el sistema y se sabe acceder a su consola para ejecutar órdenes.
+
+Los lenguajes de programación, hojas de cálculo, bases de datos y otras aplicaciones software incorporan funciones predefinidas que nos permiten calcular rápidamente la raíz cuadradada de un número, el seno de un ángulo, logaritmos, la media de un conjunto de valores, etc. Todas estas son operaciones cuya formulación matemática se conoce, por lo que es posible implementarlas de manera relativamente sencilla e invocarlas cuando se necesitan. Una vez programadas, cada función será capaz de realizar exclusivamente la operación enconmendada. Es como si contásemos con una calculadora con esa operación, produciendo siempre la misma salida a partir de las mismas entradas.
+
+Una [red neuronal artificial](https://es.wikipedia.org/wiki/Red_neuronal_artificial) (ANN, *Artificial Neural Network*), asumiendo que tenga la estructura adecuada y cuente con un algoritmo de aprendizaje correcto, es capaz de aprender a realizar teóricamente cualquier operación, sin necesidad de que le facilitemos su formulación matemática. Solo necesita que le facilitemos varios ejemplos de la salida que se produce a partir de ciertas entradas. Si los ejemplos son suficientes y representativos del problema, tras el aprendizaje la red neuronal será capaz de efectuar dicha operación con una alta precisión.
+
+Cabe preguntarse la razón por la cual querríamos usar una ANN en lugar de una función capaz de efectuar la operación con total acierto. Esto último, sin embargo, solo es posible si conocemos la formulación del problema y, además, somos capaces de trasladarlo a un lenguaje para implementarla en software. Hay muchas situaciones en las que se conocen las salidas que producen unas ciertas entradas, pero la función que se aplica a estas últimas para generar las primeras es desconocida o bien resulta muy compleja de calcular. Es en estas situaciones en las que una ANN (u otro modelo de minería de datos, pero aquí nos centramos en las ANN) son considerablemente útiles.
+
+# Una red neuronal que calcula hipotenusas
+
+Comprobemos en la práctica la anterior aseveración de que una ANN puede aprender por sí misma virtualmente cualquier función. El objetivo es obtener una ANN capaz de calcular la hipotenusa a partir de las medidas de lo catetos, pero sin facilitarle la fórmula exacta para hacerlo. Para ello nos serviremos del paquete `neuralnet` de R.
+
+El primer paso es cargar el paquete, introduciendo en la consola de R el siguiente comando:
+
+```{r, message=FALSE}
+library(neuralnet)
+```
+
+Si la respuesta fuese que el paquete no está disponible, tendremos que instalarlo con el comando `install.packages('neuralnet')`, tras lo cual volveríamos a ejecutar el la orden anterior.
+
+Este paquete de R cuenta con una función, llamada `neuralnet()`, que a partir de una serie de ejemplos se encarga de conducir el aprendizaje de la ANN, devolviendo esta como resultado. A partir de ahí es posible facilitarle solo los datos de entrada para obtener la salida correspondiente.
+
+## Datos de ejemplo
+
+Lo primero que necesitamos son algunos datos de ejemplo que permitan a la ANN aprender la función. Para ello vamos a preparar un `data.frame` (un tipo de dato de R similar a una matriz) con 100 filas, un centenar de ejemplos, cada una de las cuales tendrá tres columnas. Las dos primeras contendrán las medidas de dos catetos y las obtendremos así:
+
+```{r}
+set.seed(42)  # Establece la semilla aleatoria para asegurar reproducibilidad
+
+data <- data.frame(
+  Cat1 = round(runif(100, min = 1, max = 10)), 
+  Cat2 = round(runif(100, min = 1, max = 10)))
+
+head(data)
+```
+
+La función `runif()` devuelve valores de una distribución uniforme. En este caso concreto le solicitamos 100 valores entre 1 y 10 para cada uno de los catetos. Podemos comprobar cuál es el contenido  del `data.frame` simplemente escribiendo en la consola `data` y pulsando Intro. Esto mostraría las 100 filas. Para comprobar la estructura es suficiente con algunas de ellas, devueltas por la función `head()`.
+
+El `data.frame` debe tener una columna adicional con la hipotenusa correspondiente a cada pareja de catetos. La añadimos de la siguiente manera:
+
+```{r}
+data$Hyp <- sqrt(data$Cat1*data$Cat1 + data$Cat2*data$Cat2)
+
+head(data)
+```
+
+## Particiones de entrenamiento y validación
+
+De los 100 ejemplos que contiene nuestro `data.frame` vamos a usar una parte para que la ANN aprenda (partición de entrenamiento o *training*) y otra para comprobar lo bien que ha aprendido (partición de validación o *test*). Lo habitual, cuando no se va a efectuar validación cruzada (varias repeticiones del experimento con distintas particiones de datos), es tomar dos tercios para entrenamiento y el tercio restante para validación. También es habitual seleccionar los ejemplos de forma aleatoria.
+
+Mediante la función `sample()` vamos a tomar aleatoriamente un tercio de los índices correspondientes a las filas (ejemplos) existentes en el `data.frame`. El número de filas se obtiene con la función `nrow()`. Lo que obtenemos como resultado, según puede apreciarse a continuación, es un vector con índices aleatorios, no los datos en sí:
+```{r}
+fold.test <- sample(nrow(data), nrow(data) / 3)
+fold.test
+```
+
+Esos índices, un tercio del total, serán los correspondientes a los ejemplos que usaremos para validación. Cuando se trabaja con un `data.frame` es posible acceder a cualquier dato individual mediante la notación `variable[nfila, ncolumna]`. También es posible obtener múltiples datos simultáneamente, usando como índices vectores de números. Si el número de fila o columna es omitido se asume que se tomarán todas las filas o todas las columnas, según el caso.
+
+Para crear nuestra partición de entrenamiento y de validación usaremos los índices anteriores, almacenados en la variable `fold.test`, para seleccionar las filas adecuadas del `data.frame`:
+
+```{r, cache=TRUE}
+test  <- data[fold.test, ]
+train <- data[-fold.test, ]
+
+head(test)
+head(train)
+```
+
+Con la expresión `data[fold.test, ]` estamos tomando del `data.frame` original las tres columnas de las filas cuyos índices contiene `fold.test`. La expresión `data[-fold.test, ]` es similar, pero tomando las filas cuyos índices no están en el vector `fold.test`. De esta forma obtenemos dos conjuntos disjuntos de ejemplos, uno en la variable `train` y otro en la variable `test`. Ambas son objetos `data.frame`, con las mismas tres columnas que `data`.
+
+## Entrenamiento de la red neuronal
+Teniendo preparados los datos que actuarán como ejemplos de la función a aprender, estamos en disposición de entrenar nuestra red neuronal. Para ello no hay más que invocar a la función `neuralnet()` mencionada anteriormente. Esta puede tomar un conjunto bastante importante de parámetros, algunos de ellos relativamente complejos, pero la mayor parte toman valores por defecto adecuados, por lo que en la práctica bastará con una llamada como la siguiente:
+
+```{r, cache=TRUE}
+ann <- neuralnet(Hyp ~ Cat1 + Cat2, train, hidden = 10, rep = 3)
+```
+
+Los dos primeros parámetros son obligatorios. El primero es una fórmula mediante la que se indica qué variables son predictoras (los catetos) y qué variables se van a predecir (la hipotenusa). La sintaxis es simple: disponemos los nombres de las columnas del `data.frame` que contienen datos a obtener como resultado de la red neuronal, en este caso es solo una, separados entre sí mediante el operador `+`. A continuación, tras el símbolo `~`, se facilitan las variables de entrada de la misma manera. El segundo parámetro es el `data.frame` que contiene las variables a las que se hace referencia en la anterior fórmula.
+
+El parámetro `hidden` es opcional. Con él indicamos el número de neuronas que existirá en cada una de las capas ocultas de la ANN. En este caso vamos a tener una sola capa oculta con 10 neuronas. Por defecto la función `neuralnet()` efectúa una sola vez el proceso de entrenamiento de la ANN. Con el parámetro `rep` se cambia el número de repeticiones (en el proceso hay una componente aleatoria que provoca que cada red obtenida tras el entrenamiento sea distinta), con el objetivo de obtener la mejor ANN posible.
+
+Finalizado el proceso de aprendizaje, la estructura de las distintas ANN obtenidas queda almacenada en la variable `ann`. Podemos imprimirla para obtener un resumen del rendimiento de las ANN:
+```{r}
+ann
+```
+
+Por cada repetición se indica el error cometido, el umbral alcanzado y el número de pasos que ha demandado el aprendizaje. El número de pasos, también conocido como *épocas*, puede limitarse o ampliarse, lo cual afectará a la precisión de la ANN. Durante el proceso de aprendizaje se usa un algoritmo que determina, para las entradas facilitadas, el error que ha cometido la ANN en su salida. En función de la magnitud de ese error se ajustarán los pesos asociados a las conexiones entre las neuronas de las distintas capas. Esto provoca que para unos valores de entrada se genere una cierta salida que en el futuro, tras efectuar cambios en dichos pesos como resultado del procesamiento de otros ejemplos, será distinta. Para estabilizar la red se procesan los mismos ejemplos de manera reiterada y en distinto orden, hasta que se converge a un cierto umbral de mejora o se alcanza un máximo de pasos. 
+
+## Examinando la estructura de la ANN
+Aunque podemos examinar el contenido de la variable `ann` para obtener información sobre las conexiones entre las neuronas, incluyendo los pesos asignados a cada una de las conexiones existentes entre ellas, en general nos resultará más sencillo analizar esta información visualmente. Para ello facilitaremos dicha variable a la función `plot()`, encargada de dibujar la ANN a partir de los datos devueltos por `neuralnet()`. Dado que en la variable `ann` tenemos varias ANN, con distintas tasas de error, usaremos el parámetro `rep` para indicar que se represente la mejor de ellas. 
+
+```{r DiagramaANN}
+plot(ann, rep = "best")
+```
+
+A partir de esta representación, o usando directamente los datos contenidos en la variable `ann`, podríamos tomar dos valores cualesquiera como catetos y seguir paso a paso su evolución por la ANN. Primero habría que multiplicar esos valores por los pesos que indica cada uno de los enlaces. A continuación sumaríamos todas las entradas que llegan a cada neurona oculta. Sobre ese valor se aplicaría una función, la función de activación de la neurona, que generará un valor de salida. Por defecto `neuralnet` usa la función de activación logística o sigmoidal. De esta forma se obtiene una salida de cada neurna de la capa oculta. Todas ellas actúan como entrada para la neurona de salida, cuyo valor se calcula como la suma ponderada de todas esas entradas. Esta neurona de salida no efectúa procesamiento alguno sobre dicho valor, como no lo hacen las de entrada.
+
+> Las posibles funciones de activación y su naturaleza, así como la forma en que se ajustan los pesos que conectan las neuronas, son temas a analizar con más detalle con posterioridad
+
+Además de el diagrama de la red con sus conexiones y pesos, también podemos utilizar la función `gwplot()` para obtener una representación de los pesos generalizados (GW, *Generalized Weights*) de una variable de entrada respecto a una de salida. Esto nos permitiría, por ejemplo, determinar qué variable aporta más peso a la predicción de una salida. En nuestra ANN de ejemplo, tras aprender la función hipotenusa, no es de extrañar que ambas variables predictoras tengan una aportación muy similar a la única salida existente, tal y como se aprecia en las siguientes gráficas.
+
+```{r}
+par(mfrow=c(1,2))
+gwplot(ann, selected.covariate = 'Cat1', rep = 'best')
+gwplot(ann, selected.covariate = 'Cat2', rep = 'best')
+```
+
+## Usar la red para predecir nuevos resultados
+Teniendo la red ya entrenada, podemos entregarle nuevas entradas no con el objetivo de que continúe aprendiendo, sino para obtener una predicción de cual debería ser el valor resultante de la función aprendida. Para ello usaremos la función `compute()`. Para ello le facilitaremos la variable que contiene la configuración de la ANN, un `data.frame` con los valores para las variables de entrada y, opcionalmente, indicaremos cuál de las repeticiones de la ANN queremos usar.
+
+En el siguiente ejemplo tomamos de la variable `test`, que contenía datos que nos hemos usado para el entrenamiento de la red, las variables `Cat1` y `Cat2` y se las facilitamos a la mencionada función. Guardamos el resultado, las predicciones hechas por la ANN, en una variable. A continuación generamos una tabla de resultados mostrando en la primera columna el valor real de la hipotenusa, calculado al inicio con la fórmula estándar, en la segunda el valor predicho por la ANN y en la tercera el error cometido.
+
+```{r}
+output <- compute(ann, test[ , c("Cat1", "Cat2")], rep = 1)
+data.frame(Real = test$Hyp, Predicted = output$net.result, Error = abs(test$Hyp - output$net.result) / test$Hyp)
+```
+
+Tenemos, por tanto, una ANN que ha aprendido la fórmula de cálculo de la hipotenusa a partir de un conjunto de ejemplos, con capacidad para calcularla con una precisión bastante aceptable. De hecho, si nos quedásemos solo con los dos primeros decimales en muchos casos no habría error.
+
+# Ejemplo de clasificación con una red neuronal
+En este caso tomaremos como punto de partida el conocido dataset `iris`. El objetivo es clasificar flores (concretamente lirios) en la familia correcta (hay tres posibles) a partir de la longitud y anchura del sépalo y el pétalo. No conocemos a priori ninguna función matemática que efectúe dicho cálculo, a diferencia de lo que ocurría en el caso anterior con el cálculo de la hipotenusa.
+
+A continuación se sigue el mismo procedimiento anterior para particionar los datos, entrenar la red, mostrar su estructura y utilizarla para predecir la especie de ejemplos no vistos anteriormente. Como puede apreciarse en la tabla final, apenas se cometen errores y casi todos los ejemplos son clasificados correctamente.
+
+```{r}
+data(iris)
+head(iris)
+
+fold.test <- sample(nrow(iris), nrow(iris) / 3)
+test <- iris[fold.test, ]
+train <- iris[-fold.test, ]
+
+ann <- neuralnet(as.numeric(Species) ~ Sepal.Length + Sepal.Width + 
+                   Petal.Length + Petal.Width, train, hidden = c(10,5))
+ann
+```
+
+```{r}
+plot(ann, rep = "best")
+
+par(mfrow=c(2,2))
+gwplot(ann, selected.covariate = "Sepal.Length")
+gwplot(ann, selected.covariate = "Sepal.Width")
+gwplot(ann, selected.covariate = "Petal.Length")
+gwplot(ann, selected.covariate = "Petal.Width")
+```
+
+```{r}
+output <- compute(ann, test[ , c("Sepal.Length", "Sepal.Width", 
+                                 "Petal.Length", "Petal.Width")])
+
+result <- data.frame(
+  Real = test$Species, 
+  Predicted = levels(iris$Species)[round(output$net.result)])
+result
+table(result$Predicted, result$Real)
+```
+
