@@ -1,0 +1,221 @@
+---
+title: "Redes Neuronales"
+author: "Fran"
+date: "18 de noviembre de 2015"
+output: html_document
+---
+
+Informe sobre utilización de Redes Neuronales en R con varios dataset:
+
+- Carga del paquete, introduciendo en la consola de R el siguiente comando:
+
+```{r, message=FALSE}
+library(neuralnet)
+```
+
+- Dataset Iris:
+
+1- Carga del dataset.
+
+```{r}
+data(iris)
+head(iris)
+```
+
+
+2- Partición en test y train.
+
+```{r}
+fold.test <- sample(nrow(iris), nrow(iris) / 3)
+test <- iris[fold.test, ]
+train <- iris[-fold.test, ]
+```
+
+3- Primera configuración:
+
+3.1- Entrenamiento de la red neuronal.
+  Parámetros: 1 capa oculta de 10 neuronas y 3 repeticiones.
+  Resto de parámetros por defecto.
+
+```{r}
+ann <- neuralnet(as.numeric(Species) ~ Sepal.Length + Sepal.Width + 
+                   Petal.Length + Petal.Width, train, hidden = 10, rep=3)
+ann
+```
+
+3.2- Estructura de la red producida:
+
+```{r}
+plot(ann, rep = "best")
+
+par(mfrow=c(2,2))
+gwplot(ann, selected.covariate = "Sepal.Length")
+gwplot(ann, selected.covariate = "Sepal.Width")
+gwplot(ann, selected.covariate = "Petal.Length")
+gwplot(ann, selected.covariate = "Petal.Width")
+```
+
+3.3- Predicción de nuevos resultados (a través del fichero de test):
+
+```{r}
+output <- compute(ann, test[ , c("Sepal.Length", "Sepal.Width", 
+                                 "Petal.Length", "Petal.Width")])
+
+result <- data.frame(
+  Real = test$Species, 
+  Predicted = levels(iris$Species)[round(output$net.result)])
+table(result$Predicted, result$Real)
+```
+
+3.4- Error para la configuración establecida:
+
+```{r,echo=FALSE}
+error<- table(result$Predicted==result$Real)
+barplot(error)
+error1<-if(length(error)==1){0}else{error[[1]]/(error[[1]]+error[[2]])}
+error1
+```
+4- Segunda configuración:
+  
+4.1- Entrenamiento de la red neuronal.
+  Parámetros: 2 capa oculta de 5 y 10 neuronas y 1 repetición.
+  Resto de parámetros por defecto.
+
+```{r}
+ann <- neuralnet(as.numeric(Species) ~ Sepal.Length + Sepal.Width + 
+                   Petal.Length + Petal.Width, train, hidden = c(5,10))
+ann
+```
+
+4.2- Estructura de la red producida:
+
+```{r}
+plot(ann, rep = "best")
+
+par(mfrow=c(2,2))
+gwplot(ann, selected.covariate = "Sepal.Length")
+gwplot(ann, selected.covariate = "Sepal.Width")
+gwplot(ann, selected.covariate = "Petal.Length")
+gwplot(ann, selected.covariate = "Petal.Width")
+```
+
+4.3- Predicción de nuevos resultados (a través del fichero de test):
+
+```{r}
+output <- compute(ann, test[ , c("Sepal.Length", "Sepal.Width", 
+                                 "Petal.Length", "Petal.Width")])
+
+result <- data.frame(
+  Real = test$Species, 
+  Predicted = levels(iris$Species)[round(output$net.result)])
+table(result$Predicted, result$Real)
+```
+
+4.4- Error para la configuración establecida:
+
+```{r,echo=FALSE}
+error<- table(result$Predicted==result$Real)
+barplot(error)
+error2<-if(length(error)==1){0}else{error[[1]]/(error[[1]]+error[[2]])}
+error2
+```
+
+5- Tercera configuración:
+  
+5.1- Entrenamiento de la red neuronal.
+  Parámetros: 3 capa oculta de 15, 10 y 5 neuronas y 3 repeticiones.
+  Resto de parámetros por defecto.
+
+```{r}
+ann <- neuralnet(as.numeric(Species) ~ Sepal.Length + Sepal.Width + 
+                   Petal.Length + Petal.Width, train, hidden = c(15,10,5), rep=3)
+ann
+```
+
+5.2- Estructura de la red producida:
+
+```{r}
+plot(ann, rep = "best")
+
+par(mfrow=c(2,2))
+gwplot(ann, selected.covariate = "Sepal.Length")
+gwplot(ann, selected.covariate = "Sepal.Width")
+gwplot(ann, selected.covariate = "Petal.Length")
+gwplot(ann, selected.covariate = "Petal.Width")
+```
+
+5.3- Predicción de nuevos resultados (a través del fichero de test):
+
+```{r}
+output <- compute(ann, test[ , c("Sepal.Length", "Sepal.Width", 
+                                 "Petal.Length", "Petal.Width")])
+
+result <- data.frame(
+  Real = test$Species, 
+  Predicted = levels(iris$Species)[round(output$net.result)])
+table(result$Predicted, result$Real)
+```
+
+5.4- Error para la configuración establecida:
+
+```{r,echo=FALSE}
+error<- table(result$Predicted==result$Real)
+barplot(error)
+error3<-if(length(error)==1){0}else{error[[1]]/(error[[1]]+error[[2]])}
+error3
+````
+
+6- Cuarta configuración:
+  
+6.1- Entrenamiento de la red neuronal.
+  Parámetros: 4 capas ocultas de 20, 15, 10 y 5 neuronas y 3 repeticiones.
+  Resto de parámetros por defecto.
+
+```{r}
+ann <- neuralnet(as.numeric(Species) ~ Sepal.Length + Sepal.Width + 
+                   Petal.Length + Petal.Width, train, hidden = c(20,15,10,5), rep=3)
+ann
+```
+
+6.2- Estructura de la red producida:
+
+```{r}
+plot(ann, rep = "best")
+
+par(mfrow=c(2,2))
+gwplot(ann, selected.covariate = "Sepal.Length")
+gwplot(ann, selected.covariate = "Sepal.Width")
+gwplot(ann, selected.covariate = "Petal.Length")
+gwplot(ann, selected.covariate = "Petal.Width")
+```
+
+6.3- Predicción de nuevos resultados (a través del fichero de test):
+
+```{r}
+output <- compute(ann, test[ , c("Sepal.Length", "Sepal.Width", 
+                                 "Petal.Length", "Petal.Width")])
+
+result <- data.frame(
+  Real = test$Species, 
+  Predicted = levels(iris$Species)[round(output$net.result)])
+table(result$Predicted, result$Real)
+```
+
+6.4- Error para la configuración establecida:
+
+```{r,echo=FALSE}
+error<- table(result$Predicted==result$Real)
+barplot<-error
+error4<-if(length(error)==1){0}else{error[[1]]/(error[[1]]+error[[2]])}
+error4
+````
+
+
+7- Errores obtenidos:
+
+```{r,echo=FALSE}
+barplot(c(error1,error2,error3,error4),names.arg=c("Error1","Error2","Error3","Error4"),main="Errores Obtenidos",xlab="Configuración",ylab="Error")
+
+```
+
+
